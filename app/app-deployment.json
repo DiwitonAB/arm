@@ -136,7 +136,7 @@
   },
   "variables": {
     "location": "[resourceGroup().location]",
-    "vmName": "[concat(parameters('siteName'), '-', parameters('vmName')]",
+    "vmName": "[concat(parameters('siteName'), '-', parameters('vmName'))]",
     "dnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'), '-', variables('vmName')))]",
     "nsgId": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('vmName'), '-nsg'))]",
     "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
