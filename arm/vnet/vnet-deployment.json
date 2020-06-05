@@ -1,0 +1,75 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "siteName": {
+      "type": "string",
+      "defaultValue": "nlams01",
+      "metadata": {
+        "description": "Lower case site name in the format '<country_code><city_code><number>'."
+      }
+    },
+    "customerPrefix": {
+      "type": "string",
+      "defaultValue": "Diwiton",
+      "metadata": {
+        "description": "Shortened name for the customer to use as a prefix for some services."
+      }
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.1.0.0/16",
+      "metadata": {
+        "description": "VNet address prefix"
+      }
+    },
+    "subnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.1.1.0/24",
+      "metadata": {
+        "description": "Subnet address prefix"
+      }
+    },
+    "dnsServerAddress": {
+      "type": "array",
+      "metadata": {
+        "Description": "The DNS address(es) of the DNS Server(s) used by the VNET"
+      },
+      "defaultValue": []
+    }
+  },
+  "variables": {
+    "vnetName": "[toLower(concat(parameters('siteName'), '-vnet'))]",
+    "subnetName": "[toLower(concat(parameters('sitename'), '-subnet01'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-10-01",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('vnetName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "vnet"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('vnetAddressPrefix')]"
+          ]
+        },
+        "dhcpOptions": {
+          "dnsServers": "[parameters('dnsServerAddress')]"
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('subnetAddressPrefix')]"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
