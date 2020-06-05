@@ -1,4 +1,4 @@
-# adds
+# Active Directory Domain Services
 Azure Resource Manager (ARM) template for an Active Directory Domain Services (ADDS) deployment with two domain controllers on VM's in Azure. 
 This template also creates a Virtual Network (VNET) and subnet.
 
