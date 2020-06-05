@@ -1,0 +1,772 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "customerPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique prefix for the customer. Eg. diwiton for Diwiton AB"
+      },
+      "defaultValue": "Diwiton"
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The vnet name of AD domain. For example johnvnet1"
+      },
+      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-VNET'))]"
+    },
+    "subnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The subnet name of AD domain. For example johnsubnet1"
+      },
+      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-Subnet'))]"
+    },
+    "adDomainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the AD domain. For example contoso.com"
+      },
+      "defaultValue": "ad.diwiton.se"
+    },
+    "adUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The user with permissions to add the server to the AD."
+      }
+    },
+    "adPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the AD user."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the local administrator of the new VM. Exclusion list: 'administrator'. For example johnadmin"
+      },
+      "defaultValue": "Diwiton"
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the local administrator account of the new VM."
+      },
+      "defaultValue": ""
+    },
+    "rdsDomainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The external domain name to use with the RDS deployment"
+      },
+      "defaultValue": "diwiton.se"
+    },
+    "useAzureHybridBenefit": {
+      "type": "string",
+      "allowedValues": [
+        "yes",
+        "no"
+      ]
+    },
+    "numberOfInstances": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of Remote Desktop Session Hosts"
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "allowedValues": [
+        "Standard_E2s_v3",
+        "Standard_E4s_v3"
+      ],
+      "metadata": {
+        "description": "The size of the Remote Desktop Session Host VMs"
+      },
+      "defaultValue": "Standard_E2s_v3"
+    }
+  },
+  "variables": {
+    "location": "[resourceGroup().location]",
+    "rdsPrefix": "rds",
+    "shPrefix": "rdsh",
+    "gwPrefix": "rdgw",
+    "cbPrefix": "rdcb",
+    "gwName": "[concat(variables('gwPrefix'), '001')]",
+    "cbName": "[concat(variables('cbPrefix'), '001')]",
+    "lbName": "[concat(variables('rdsPrefix'), '-lb')]",
+    "dnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'), '-', variables('rdsPrefix')))]",
+    "gwdnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'),'-', variables('gwName')))]",
+    "cbdnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'),'-', variables('cbName')))]",
+    "imagePublisher": "MicrosoftWindowsServer",
+    "imageOffer": "WindowsServer",
+    "imageSku": "2019-Datacenter",
+    "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+    "subnet-id": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]",
+    "assetLocation": "https://diwitonshellstorage01.blob.core.windows.net/dsc/rds-deployment",
+    "imageId": "/subscriptions/bd6a6a70-b2be-4037-8bc9-d07f6918a544/resourceGroups/TEMPLATE-RG001/providers/Microsoft.Compute/galleries/DiwitonTemplates/images/Diwiton_2019_Rdsh/versions/1.0.0"
+  },
+  "resources": [
+    {
+      "name": "[concat(variables('rdsPrefix'), '-public-ip')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('dnsLabelPrefix')]"
+        }
+      }
+    },
+    {
+      "name": "[concat(variables('gwName'), '-public-ip')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('gwdnsLabelPrefix')]"
+        }
+      }
+    },
+    {
+      "name": "[concat(variables('cbName'), '-public-ip')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('cbdnsLabelPrefix')]"
+        }
+      }
+    },
+    {
+      "name": "[concat(variables('gwPrefix'), '-availabilityset')]",
+      "type": "Microsoft.Compute/availabilitySets",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "PlatformUpdateDomainCount": 20,
+        "PlatformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
+      }
+    },
+    {
+      "name": "[concat(variables('cbPrefix'), '-availabilityset')]",
+      "type": "Microsoft.Compute/availabilitySets",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "PlatformUpdateDomainCount": 20,
+        "PlatformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
+      }
+    },
+    {
+      "name": "[concat(variables('shPrefix'), '-availabilityset')]",
+      "type": "Microsoft.Compute/availabilitySets",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "PlatformUpdateDomainCount": 20,
+        "PlatformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
+      }
+    },
+    {
+      "name": "[variables('lbName')]",
+      "type": "Microsoft.Network/loadBalancers",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('rdsPrefix'), '-public-ip')]"
+      ],
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "[concat(variables('lbName'), '-fe')]",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('rdsPrefix'), '-public-ip'))]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[concat(variables('lbName'), '-be-pool')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "LBRule01",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')), '/frontendIPConfigurations/', variables('lbName'), '-fe')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/backendAddressPools/', variables('lbName'), '-be-pool')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 443,
+              "backendPort": 443,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 5,
+              "loadDistribution": "SourceIPProtocol",
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/probes/tcpProbe')]"
+              }
+            }
+          },
+          {
+            "name": "LBRule02",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/frontendIPConfigurations/', variables('lbName'), '-fe')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/backendAddressPools/', variables('lbName'), '-be-pool')]"
+              },
+              "protocol": "Udp",
+              "frontendPort": 3391,
+              "backendPort": 3391,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 5,
+              "loadDistribution": "SourceIPProtocol",
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/probes/tcpProbe')]"
+              }
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "tcpProbe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 443,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          },
+          {
+            "name": "tcpProbe01",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 3391,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          }
+        ],
+        "inboundNatRules": [
+          {
+            "name": "rdp",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/frontendIPConfigurations/', variables('lbName'), '-fe')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 3389,
+              "backendPort": 3389,
+              "enableFloatingIP": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(variables('gwName'), '-nic')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/loadBalancers/', variables('lbName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('gwName'), '-public-ip'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnet-id')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/backendAddressPools/', variables('lbName'), '-be-pool')]"
+                }
+              ],
+              "loadBalancerInboundNatRules": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/inboundNatRules/rdp')]"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(variables('cbName'), '-nic')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/loadBalancers/', variables('lbName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('cbName'), '-public-ip'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnet-id')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(variables('shPrefix'), '00', copyindex(1), '-nic')]",
+      "location": "[variables('location')]",
+      "copy": {
+        "name": "rdsh-nic-loop",
+        "count": "[parameters('numberOfInstances')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/loadBalancers/', variables('lbName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('subnet-id')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2017-03-30",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[variables('gwName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('gwPrefix'), '-availabilityset'))]",
+        "[concat('Microsoft.Network/networkInterfaces/', variables('gwName'), '-nic')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_B2S"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('gwPrefix'), '-availabilityset'))]"
+        },
+        "osProfile": {
+          "computerName": "[variables('gwName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[variables('imageSku')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[concat(variables('gwName'), '_OSDisk')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Standard_LRS"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('gwName'), '-nic'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "apiVersion": "2015-06-15",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('gwName'), '/gateway')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('gwName'))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.11",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
+              "ConfigurationFunction": "Configuration.ps1\\Gateway",
+              "Properties": {
+                "DomainName": "[parameters('adDomainName')]",
+                "AdminCreds": {
+                  "UserName": "[parameters('adUsername')]",
+                  "Password": "PrivateSettingsRef:adPassword"
+                }
+              }
+            },
+            "protectedSettings": {
+              "Items": {
+                "AdPassword": "[parameters('adPassword')]"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "apiVersion": "2018-04-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(variables('shPrefix'), '00', copyindex(1))]",
+      "location": "[variables('location')]",
+      "copy": {
+        "name": "rdsh-vm-loop",
+        "count": "[parameters('numberOfInstances')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('shPrefix'), '-availabilityset'))]",
+        "[concat('Microsoft.Network/networkInterfaces/', variables('shPrefix'), '00', copyindex(1), '-nic')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('shPrefix'), '-availabilityset'))]"
+        },
+        "osProfile": {
+          "computerName": "[concat(variables('shPrefix'),'00', copyIndex(1))]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "storageProfile": {
+          "imageReference": {
+            "id": "[variables('imageId')]"
+          },
+          "osDisk": {
+            "name": "[concat(variables('shPrefix'),'00', copyIndex(1),'_OSDisk')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Standard_LRS"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('shPrefix'),'00', copyindex(1), '-nic'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "apiVersion": "2015-06-15",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('shPrefix'),'00', copyindex(1),'/sessionhost')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('shPrefix'),'00', copyindex(1)))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.11",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
+              "ConfigurationFunction": "Configuration.ps1\\SessionHost",
+              "Properties": {
+                "DomainName": "[parameters('adDomainName')]",
+                "AdminCreds": {
+                  "UserName": "[parameters('adUsername')]",
+                  "Password": "PrivateSettingsRef:AdPassword"
+                }
+              }
+            },
+            "protectedSettings": {
+              "Items": {
+                "AdPassword": "[parameters('adPassword')]"
+              }
+            }
+          }
+        },
+        {
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('shPrefix'),'00', copyindex(1),'/AntiMalware')]",
+          "apiVersion": "2017-03-30",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', variables('shPrefix'), '00', copyIndex(1))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('shPrefix'), '00', copyIndex(1), '/extensions/sessionhost')]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Azure.Security",
+            "type": "IaaSAntimalware",
+            "typeHandlerVersion": "1.3",
+            "settings": {
+              "AntimalwareEnabled": "true",
+              "RealtimeProtectionEnabled": "true",
+              "ScheduledScanSettings": {
+                "isEnabled": "true",
+                "scanType": "Quick",
+                "day": "7",
+                "time": "1080"
+              }
+            },
+            "protectedSettings": null
+          }
+        },
+        {
+          "apiVersion": "2018-06-01",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('shPrefix'), '00', copyIndex(1), '/RegionalSettings')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', variables('shPrefix'), '00', copyIndex(1))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('shPrefix'), '00', copyIndex(1), '/extensions/AntiMalware')]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('shPrefix'), '00', copyIndex(1), '/extensions/SessionHost')]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.9",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+              ],
+              "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "apiVersion": "2017-03-30",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[variables('cbName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('cbPrefix'), '-availabilityset'))]",
+        "[concat('Microsoft.Network/networkInterfaces/', variables('cbName'), '-nic')]",
+        "rdsh-vm-loop"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_B2S"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('cbPrefix'), '-availabilityset'))]"
+        },
+        "osProfile": {
+          "computerName": "[variables('cbName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[variables('imageSku')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[concat(variables('cbName'), '_OSDisk')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Standard_LRS"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('cbName'), '-nic'))]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('cbName'), '/rdsdeployment')]",
+      "apiVersion": "2015-06-15",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('cbName'))]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('gwName'), '/extensions/gateway')]",
+        "rdsh-vm-loop"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Powershell",
+        "type": "DSC",
+        "typeHandlerVersion": "2.11",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "modulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
+          "configurationFunction": "Configuration.ps1\\RDSDeployment",
+          "Properties": {
+            "adminCreds": {
+              "UserName": "[parameters('adUsername')]",
+              "Password": "PrivateSettingsRef:adPassword"
+            },
+            "connectionBroker": "[concat(variables('cbName'), '.', parameters('adDomainName'))]",
+            "domainName": "[parameters('adDomainName')]",
+            "externalfqdn": "[concat(variables('rdsPrefix'), '.', parameters('rdsDomainName'))]",
+            "numberOfRdshInstances": "[parameters('numberOfInstances')]",
+            "sessionHostNamingPrefix": "[concat(variables('shPrefix'), '00')]",
+            "collectionName": "[concat(parameters('customerPrefix'), ' RDS Collection')]",
+            "webAccessServer": "[concat(variables('gwName'), '.', parameters('adDomainName'))]"
+          }
+        },
+        "protectedSettings": {
+          "Items": {
+            "adPassword": "[parameters('adPassword')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('gwName'),'/antimalware')]",
+      "apiVersion": "2017-03-30",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', variables('gwName'))]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('gwName'), '/extensions/gateway')]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Azure.Security",
+        "type": "IaaSAntimalware",
+        "typeHandlerVersion": "1.3",
+        "settings": {
+          "AntimalwareEnabled": "true",
+          "RealtimeProtectionEnabled": "true",
+          "ScheduledScanSettings": {
+            "isEnabled": "true",
+            "scanType": "Quick",
+            "day": "7",
+            "time": "1080"
+          }
+        },
+        "protectedSettings": null
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('cbName'),'/antimalware')]",
+      "apiVersion": "2017-03-30",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', variables('cbName'))]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('cbName'), '/extensions/RdsDeployment')]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Azure.Security",
+        "type": "IaaSAntimalware",
+        "typeHandlerVersion": "1.3",
+        "settings": {
+          "AntimalwareEnabled": "true",
+          "RealtimeProtectionEnabled": "true",
+          "ScheduledScanSettings": {
+            "isEnabled": "true",
+            "scanType": "Quick",
+            "day": "7",
+            "time": "1080"
+          }
+        },
+        "protectedSettings": null
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('gwName'),'/RegionalSettings')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('gwName'))]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('gwName'), '/extensions/Gateway')]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('gwName'), '/extensions/AntiMalware')]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.9",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+          ],
+          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('cbName'),'/RegionalSettings')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('cbName'))]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('cbName'), '/extensions/RdsDeployment')]",
+        "[concat('Microsoft.Compute/virtualMachines/', variables('cbName'), '/extensions/AntiMalware')]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.9",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+          ],
+          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
+        }
+      }
+    }
+  ]
+}

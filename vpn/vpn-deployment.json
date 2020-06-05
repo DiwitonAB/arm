@@ -1,0 +1,182 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "customerPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique prefix for the customer. Eg. diwiton for Diwiton AB"
+      },
+      "defaultValue": "Diwiton"
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the VNET where to deploy the VM. The VNET must have access to the Active Directory domain."
+      },
+      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-VNET'))]"
+    },
+    "subnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the subnet where to deploy the VM. The subnet must have access to the Active Directory domain."
+      },
+      "defaultValue": "GatewaySubnet"
+    },
+    "subnetPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "The IP range to use for the gateway subnet."
+      },
+      "defaultValue": "10.1.0.0/24"
+    },
+    "vpnGwName": {
+      "defaultValue": "vpn001",
+      "type": "string"
+    },
+    "sharedKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The Pre-Shared Key (PSK) of the VPN connection."
+      }
+    },
+    "customerGwIpAddress": {
+      "type": "string"
+    },
+    "customerSubnetPrefixes": {
+      "defaultValue": [ "10.11.0.0/16", "10.255.255.1/32" ],
+      "type": "array"
+    }
+  },
+  "variables": {
+    "location": "[resourceGroup().location]",
+    "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+    "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2019-04-01",
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "name": "[concat(parameters('vnetName'), '/', parameters('subnetName'))]",
+      "location": "[variables('location')]",
+      "properties": {
+        "addressPrefix": "[parameters('subnetPrefix')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2019-07-01",
+      "name": "[concat(parameters('vpnGwName'), '-public-ip')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Basic",
+        "tier": "Regional"
+      },
+      "properties": {
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Dynamic"
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "vpn"
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworkGateways",
+      "apiVersion": "2019-07-01",
+      "name": "[parameters('vpnGwName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIpAddresses/', parameters('vpnGwName'), '-public-ip')]",
+        "[variables('subnetRef')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "default",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(parameters('vpnGwName'), '-public-ip'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              }
+            }
+          }
+        ],
+        "sku": {
+          "name": "Basic",
+          "tier": "Basic"
+        },
+        "gatewayType": "Vpn",
+        "vpnType": "RouteBased",
+        "enableBgp": false,
+        "activeActive": false,
+        "vpnClientConfiguration": {
+          "vpnClientProtocols": [
+            "SSTP"
+          ],
+          "vpnClientRootCertificates": [],
+          "vpnClientRevokedCertificates": [],
+          "vpnClientIpsecPolicies": []
+        },
+        "vpnGatewayGeneration": "Generation1"
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "vpn"
+      }
+    },
+    {
+      "type": "Microsoft.Network/localNetworkGateways",
+      "apiVersion": "2019-07-01",
+      "name": "[concat(toLower(parameters('customerPrefix')), '-gw')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/virtualNetworkGateways/', parameters('vpnGwName'))]"
+      ],
+      "properties": {
+        "localNetworkAddressSpace": {
+          "addressPrefixes": "[parameters('customerSubnetPrefixes')]"
+        },
+        "gatewayIpAddress": "[parameters('customerGwIpAddress')]"
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "vpn"
+      }
+    },
+    {
+      "type": "Microsoft.Network/connections",
+      "apiVersion": "2019-07-01",
+      "name": "[concat('Azure_to_', parameters('customerPrefix'))]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/virtualNetworkGateways/', parameters('vpnGwName'))]",
+        "[concat('Microsoft.Network/localNetworkGateways/', toLower(parameters('customerPrefix')), '-gw')]"
+      ],
+      "properties": {
+        "virtualNetworkGateway1": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworkGateways', parameters('vpnGwName'))]"
+        },
+        "localNetworkGateway2": {
+          "id": "[resourceId('Microsoft.Network/localNetworkGateways', concat(toLower(parameters('customerPrefix')), '-gw'))]"
+        },
+        "connectionType": "IPsec",
+        "connectionProtocol": "IKEv2",
+        "routingWeight": 0,
+        "sharedKey": "[parameters('sharedKey')]",
+        "enableBgp": false,
+        "usePolicyBasedTrafficSelectors": false,
+        "ipsecPolicies": [],
+        "trafficSelectorPolicies": [],
+        "expressRouteGatewayBypass": false
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "vpn"
+      }
+    }
+  ]
+}

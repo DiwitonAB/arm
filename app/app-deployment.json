@@ -1,0 +1,404 @@
+﻿{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "siteName": {
+      "type": "string",
+      "defaultValue": "nlams01",
+      "metadata": {
+        "description": "Lower case site name in the format '<country_code><city_code><number>'."
+      }
+    },
+    "customerPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique prefix for the customer. Eg. diwiton for Diwiton AB"
+      },
+      "defaultValue": "Diwiton"
+    },
+    "servicePrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Optional service identifier, for example name of application"
+      },
+      "defaultValue": ""
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the VNET where to deploy the VM. The VNET must have access to the Active Directory domain."
+      },
+      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-VNET'))]"
+    },
+    "subnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the subnet where to deploy the VM. The subnet must have access to the Active Directory domain."
+      },
+      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-Subnet'))]"
+    },
+    "adDomainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the AD domain. For example contoso.com"
+      },
+      "defaultValue": "ad.diwiton.se"
+    },
+    "adUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The user with permissions to add the server to the AD."
+      }
+    },
+    "adPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the AD user."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the local administrator of the new VM. Exclusion list: 'administrator'. For example johnadmin"
+      },
+      "defaultValue": "Diwiton"
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the local administrator account of the new VM."
+      },
+      "defaultValue": ""
+    },
+    "vmName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the new VM."
+      },
+      "defaultValue": "app001"
+    },
+    "imageSKU": {
+      "type": "string",
+      "allowedValues": [
+        "2012-R2-Datacenter",
+        "2012-R2-Datacenter-smalldisk",
+        "2016-Datacenter",
+        "2016-Datacenter-smalldisk",
+        "2019-Datacenter",
+        "2019-Datacenter-smalldisk"
+      ],
+      "metadata": {
+        "description": "Windows server SKU"
+      },
+      "defaultValue": "2019-Datacenter-smalldisk"
+    },
+    "useAzureHybridBenefit": {
+      "type": "string",
+      "allowedValues": [
+        "yes",
+        "no"
+      ]
+    },
+    "vmSize": {
+      "type": "string",
+      "allowedValues": [
+        "Standard_B2s",
+        "Standard_B2ms",
+        "Standard_B4ms",
+        "Standard_B8ms",
+        "Standard_E2s_v3",
+        "Standard_E4s_v3"
+      ],
+      "metadata": {
+        "description": "The size of the VM"
+      },
+      "defaultValue": "Standard_B4ms"
+    },
+    "numberOfDisks": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of servers to deploy."
+      }
+    },
+    "diskSizeinGB": {
+      "type": "string",
+      "allowedValues": [
+        "32",
+        "64",
+        "128",
+        "256",
+        "512",
+        "1024"
+      ],
+      "defaultValue": "32"
+    }
+  },
+  "variables": {
+    "location": "[resourceGroup().location]",
+    "vmName": "[concat(parameters('siteName'), '-', parameters('vmName')]",
+    "dnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'), '-', variables('vmName')))]",
+    "nsgId": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('vmName'), '-nsg'))]",
+    "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+    "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
+  },
+  "resources": [
+    {
+      "name": "[concat(variables('vmName'), '-public-ip')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2018-08-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('dnsLabelPrefix')]"
+        }
+      },
+      "sku": {
+        "name": "Basic"
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "[if(empty(parameters('servicePrefix')), variables('vmName'), parameters('servicePrefix'))]",
+        "server": "[concat(variables('vmName'))]"
+      }
+    },
+    {
+      "name": "[concat(variables('vmName'), '-nsg')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2018-08-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "RDP",
+            "properties": {
+              "priority": 300,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "212.247.83.66",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "3389"
+            }
+          },
+          {
+            "name": "WinRM-PS",
+            "properties": {
+              "priority": 400,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "212.247.83.66",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "5985"
+            }
+          },
+          {
+            "name": "WinRM-HTTPS",
+            "properties": {
+              "priority": 500,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "212.247.83.66",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "5986"
+            }
+          }
+        ]
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "[if(empty(parameters('servicePrefix')), variables('vmName'), parameters('servicePrefix'))]",
+        "server": "[variables('vmName')]"
+      }
+    },
+    {
+      "name": "[concat(variables('vmName'), '-nic')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkSecurityGroups/', variables('vmName'), '-nsg')]",
+        "[concat('Microsoft.Network/publicIpAddresses/', variables('vmName'), '-public-ip')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "[concat(variables('vmName'), '-ipconfig')]",
+            "properties": {
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              },
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIpAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIpAddresses', concat(variables('vmName'), '-public-ip'))]"
+              }
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('vmName'), '-nsg'))]"
+        }
+      },
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "[if(empty(parameters('servicePrefix')), variables('vmName'), parameters('servicePrefix'))]",
+        "server": "[variables('vmName')]"
+      }
+    },
+    {
+      "name": "[concat(variables('vmName'))]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2018-06-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkInterfaces/', variables('vmName'), '-nic')]"
+      ],
+      "properties": {
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[concat(variables('vmName'))]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]",
+          "windowsConfiguration": {
+            "enableAutomaticUpdates": true,
+            "provisionVmAgent": true
+          }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "[parameters('imageSKU')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[concat(variables('vmName'), '_OSDisk')]",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          },
+          "copy": [
+            {
+              "name": "dataDisks",
+              "count": "[parameters('numberOfDisks')]",
+              "input": {
+                "name": "[concat(variables('vmName'), '_DataDisk', copyIndex('dataDisks'))]",
+                "caching": "ReadOnly",
+                "diskSizeGB": "[parameters('diskSizeinGB')]",
+                "lun": "[copyIndex('dataDisks')]",
+                "createOption": "Empty",
+                "managedDisk": {
+                  "storageAccountType": "Premium_LRS"
+                }
+              }
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('vmName'), '-nic'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('vmName'), '/AntiMalware')]",
+          "apiVersion": "2018-06-01",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Azure.Security",
+            "type": "IaaSAntimalware",
+            "typeHandlerVersion": "1.3",
+            "settings": {
+              "AntimalwareEnabled": "true",
+              "Exclusions": {
+                "Extensions": "",
+                "Paths": "F:\\Diwiton",
+                "Processes": ""
+              },
+
+              "RealtimeProtectionEnabled": "true",
+              "ScheduledScanSettings": {
+                "isEnabled": "true",
+                "scanType": "Quick",
+                "day": "7",
+                "time": "1320"
+              }
+            },
+            "protectedSettings": null
+          }
+        },
+        {
+          "apiVersion": "2018-06-01",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('vmName'), '/DomainJoin')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), '/extensions/antimalware')]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "JsonADDomainExtension",
+            "typeHandlerVersion": "1.3",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "Name": "[parameters('adDomainName')]",
+              "User": "[parameters('adUserName')]",
+              "Restart": "true",
+              "OUPath": "",
+              "Options": "3"
+            },
+            "protectedSettings": {
+              "Password": "[parameters('adPassword')]"
+            }
+          }
+        },
+        {
+          "apiVersion": "2018-06-01",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('vmName'), '/RegionalSettings')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), '/extensions/AntiMalware')]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), '/extensions/DomainJoin')]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.9",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+              ],
+              "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
+            }
+          }
+        }
+      ],
+      "tags": {
+        "customer": "[toLower(parameters('customerPrefix'))]",
+        "service": "[if(empty(parameters('servicePrefix')), variables('vmName'), parameters('servicePrefix'))]",
+        "server": "[variables('vmName')]"
+      }
+    }
+  ]
+}

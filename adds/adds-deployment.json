@@ -1,0 +1,668 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "siteName": {
+      "type": "string",
+      "defaultValue": "nlams01",
+      "metadata": {
+        "description": "Lower case site name in the format '<country_code><city_code><number>'."
+      }
+    },
+    "customerPrefix": {
+      "type": "string",
+      "defaultValue": "Diwiton",
+      "metadata": {
+        "description": "Shortened name for the customer to use as a prefix for some services."
+      }
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.1.0.0/16",
+      "metadata": {
+        "description": "VNet address prefix"
+      }
+    },
+    "subnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.1.1.0/24",
+      "metadata": {
+        "description": "Subnet address prefix"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Administrator of the new VM and Domain"
+      },
+      "defaultValue": "Diwiton"
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the Administrator account of the new VM and Domain"
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The FQDN of the AD Domain created "
+      }
+    },
+    "imageSKU": {
+      "type": "string",
+      "allowedValues": [
+        "2016-Datacenter",
+        "2016-Datacenter-smalldisk",
+        "2016-Datacenter-Core",
+        "2016-Datacenter-Core-smalldisk",
+        "2019-Datacenter",
+        "2019-Datacenter-smalldisk",
+        "2019-Datacenter-Core",
+        "2019-Datacenter-Core-smalldisk"
+      ],
+      "metadata": {
+        "description": "Windows server SKU"
+      },
+      "defaultValue": "2019-Datacenter-Core-smalldisk"
+    },
+    "useAzureHybridBenefit": {
+      "type": "string",
+      "allowedValues": [
+        "yes",
+        "no"
+      ]
+    },
+    "vmSize": {
+      "type": "string",
+      "allowedValues": [
+        "Standard_B1S",
+        "Standard_B1MS",
+        "Standard_B2S",
+        "Standard_B2MS"
+      ],
+      "defaultValue": "Standard_B1MS"
+    },
+    "diskSizeinGB": {
+      "type": "int",
+      "allowedValues": [
+        32,
+        64,
+        128,
+        256,
+        512,
+        1024
+      ],
+      "defaultValue": 32
+    },
+    "pdcRDPPort": {
+      "type": "int",
+      "metadata": {
+        "description": "The public RDP port for the PDC VM"
+      },
+      "defaultValue": 3389
+    },
+    "bdcRDPPort": {
+      "type": "int",
+      "metadata": {
+        "description": "The public RDP port for the BDC VM"
+      },
+      "defaultValue": 3390
+    }
+  },
+  "variables": {
+    "addsPrefix": "[concat(parameters('siteName'), '-adds')]",
+    "dnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'), '-', variables('addsPrefix')))]",
+    "netBiosName": "[toUpper(parameters('customerPrefix'))]",
+    "location": "[resourceGroup().location]",
+    "lbName": "[concat(variables('addsPrefix'), '-lb')]",
+    "pdcName": "[concat(variables('addsPrefix'), '001')]",
+    "bdcName": "[concat(variables('addsPrefix'), '002')]",
+    "network": "[split(parameters('subnetAddressPrefix'),'/')]",
+    "octet": "[split(variables('network')[0],'.')]",
+    "maskBit": "[concat(variables('octet')[0], '.', variables('octet')[1], '.', variables('octet')[2])]",
+    "hostBit": "[int(variables('octet')[3])]",
+    "pdcHostNumber": "[add(variables('hostBit'),4)]",
+    "bdcHostNumber": "[add(variables('hostBit'),5)]",
+    "pdcIpAddress": "[concat(variables('maskBit'), '.', variables('pdcHostNumber'))]",
+    "bdcIpAddress": "[concat(variables('maskBit'), '.', variables('bdcHostNumber'))]",
+    "storageAccount": "https://diwitonshellstorage01.blob.core.windows.net",
+    "pdcConfigurationModulesUri": "[concat(variables('storageAccount'),'/dsc/adds-deployment/CreateADPDC.zip')]",
+    "pdcConfigurationFunction": "CreateADPDC.ps1\\CreateADPDC",
+    "bdcPreparationModulesUri": "[concat(variables('storageAccount'),'/dsc/adds-deployment/PrepareADBDC.zip')]",
+    "bdcPreparationFunction": "PrepareADBDC.ps1\\PrepareADBDC",
+    "bdcConfigurationModulesUri": "[concat(variables('storageAccount'),'/dsc/adds-deployment/ConfigureADBDC.zip')]",
+    "bdcConfigurationFunction": "ConfigureADBDC.ps1\\ConfigureADBDC",
+    "vnetTemplateUri": "[concat(variables('storageAccount'),'/arm/vnet-deployment.json')]",
+    "regionTemplateUri": "[concat(variables('storageAccount'),'/arm/cse-deployment.json')]",
+    "configureBdcTemplateUri": "[concat(variables('storageAccount'),'/arm/nested-templates/ConfigureBDC.json')]"
+  },
+  "resources": [
+    {
+      "name": "[concat(variables('addsPrefix'), '-public-ip')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[variables('dnsLabelPrefix')]"
+        }
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "name": "[concat(variables('addsPrefix'), '-availabilityset')]",
+      "type": "Microsoft.Compute/availabilitySets",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "properties": {
+        "PlatformUpdateDomainCount": 20,
+        "PlatformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "name": "[toLower(concat(parameters('siteName'), '-vnet'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-08-01",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vnetTemplateUri')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "customerPrefix": {
+            "value": "[parameters('customerPrefix')]"
+          },
+          "vnetAddressPrefix": {
+            "value": "[parameters('vnetAddressPrefix')]"
+          },
+          "subnetAddressPrefix": {
+            "value": "[parameters('subnetAddressPrefix')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "[variables('lbName')]",
+      "type": "Microsoft.Network/loadBalancers",
+      "apiVersion": "2018-10-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('addsPrefix'), '-public-ip')]"
+      ],
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "[concat(variables('lbName'), '-fe')]",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('addsPrefix'), '-public-ip'))]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[concat(variables('lbName'), '-be-pool')]"
+          }
+        ],
+        "inboundNatRules": [
+          {
+            "name": "[concat(variables('addsPrefix'),'-pdc-rdp')]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')), '/frontendIPConfigurations/', variables('lbName'), '-fe')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 3389,
+              "backendPort": 3389,
+              "enableFloatingIP": false
+            }
+          },
+          {
+            "name": "[concat(variables('addsPrefix'),'-bdc-rdp')]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')), '/frontendIPConfigurations/', variables('lbName'), '-fe')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 3390,
+              "backendPort": 3389,
+              "enableFloatingIP": false
+            }
+          }
+        ]
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "name": "[concat(variables('pdcName'), '-nic')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2016-10-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', toLower(concat(parameters('siteName'), '-vnet')))]",
+        "[variables('lbName')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[variables('pdcIpAddress')]",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', toLower(concat(parameters('siteName'), '-VNet')), concat(toLower(parameters('siteName')), '-subnet01'))]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/backendAddressPools/', variables('lbName'), '-be-pool')]"
+                }
+              ],
+              "loadBalancerInboundNatRules": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/inboundNatRules/', variables('addsPrefix'),'-pdc-rdp')]"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "name": "[variables('pdcName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2018-04-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('pdcName'), '-nic'))]",
+        "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('addsPrefix'), '-availabilityset'))]",
+        "[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]"
+      ],
+      "properties": {
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('addsPrefix'), '-availabilityset'))]"
+        },
+        "osProfile": {
+          "computerName": "[variables('pdcName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "[parameters('imageSKU')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[concat(variables('pdcName'),'_OSDisk')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          },
+          "dataDisks": [
+            {
+              "name": "[concat(variables('pdcName'),'_DataDisk1')]",
+              "caching": "None",
+              "diskSizeGB": "[parameters('diskSizeinGB')]",
+              "lun": 0,
+              "createOption": "Empty",
+              "managedDisk": {
+                "storageAccountType": "Premium_LRS"
+              }
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('pdcName'), '-nic'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "CreateADForest",
+          "type": "extensions",
+          "apiVersion": "2018-10-01",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.77",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "wmfVersion": "latest",
+              "ModulesUrl": "[variables('pdcConfigurationModulesUri')]",
+              "ConfigurationFunction": "[variables('pdcConfigurationFunction')]",
+              "Properties": {
+                "DomainName": "[parameters('domainName')]",
+                "DomainNetBIOSName": "[variables('netBiosName')]",
+                "AdminCreds": {
+                  "UserName": "[parameters('adminUsername')]",
+                  "Password": "PrivateSettingsRef:AdminPassword"
+                }
+              }
+            },
+            "protectedSettings": {
+              "Items": {
+                "AdminPassword": "[parameters('adminPassword')]"
+              }
+            }
+          }
+        }
+      ],
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "name": "UpdateVNetDNS1",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-08-01",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', variables('pdcName'),'/extensions/CreateADForest')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vnetTemplateUri')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "customerPrefix": {
+            "value": "[parameters('customerPrefix')]"
+          },
+          "vnetAddressPrefix": {
+            "value": "[parameters('vnetAddressPrefix')]"
+          },
+          "subnetAddressPrefix": {
+            "value": "[parameters('subnetAddressPrefix')]"
+          },
+          "dnsServerAddress": {
+            "value": [
+              "[variables('pdcIpAddress')]"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "[concat(variables('bdcName'), '-nic')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2016-10-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', toLower(concat(parameters('siteName'), '-vnet')))]",
+        "[variables('lbName')]",
+        "Microsoft.Resources/deployments/UpdateVNetDNS1"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[variables('bdcIpAddress')]",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', toLower(concat(parameters('siteName'), '-vnet')), concat(toLower(parameters('siteName')), '-subnet01'))]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/backendAddressPools/', variables('lbName'), '-be-pool')]"
+                }
+              ],
+              "loadBalancerInboundNatRules": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')),'/inboundNatRules/', variables('addsPrefix'),'-bdc-rdp')]"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "name": "[variables('bdcName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2018-04-01",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('bdcName'), '-nic'))]",
+        "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('addsPrefix'), '-availabilityset'))]",
+        "[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]"
+      ],
+      "properties": {
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('addsPrefix'), '-availabilityset'))]"
+        },
+        "osProfile": {
+          "computerName": "[variables('bdcName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "[parameters('imageSKU')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[concat(variables('bdcName'),'_OSDisk')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
+            }
+          },
+          "dataDisks": [
+            {
+              "name": "[concat(variables('bdcName'),'_DataDisk1')]",
+              "caching": "None",
+              "diskSizeGB": "[parameters('diskSizeinGB')]",
+              "lun": 0,
+              "createOption": "Empty",
+              "managedDisk": {
+                "storageAccountType": "Premium_LRS"
+              }
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('bdcName'), '-nic'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "PrepareBDC",
+          "type": "extensions",
+          "apiVersion": "2018-10-01",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.77",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "wmfVersion": "latest",
+              "ModulesUrl": "[variables('bdcPreparationModulesUri')]",
+              "ConfigurationFunction": "[variables('bdcPreparationFunction')]",
+              "Properties": {
+                "DNSServer": "[variables('pdcIpAddress')]"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ConfigureBDC",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-08-01",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/',variables('bdcName'),'/extensions/PrepareBDC')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('configureBdcTemplateUri')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "bdcName": {
+            "value": "[variables('bdcName')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "domainName": {
+            "value": "[parameters('domainName')]"
+          },
+          "bdcConfigurationFunction": {
+            "value": "[variables('bdcConfigurationFunction')]"
+          },
+          "bdcConfigurationModulesUri": {
+            "value": "[variables('bdcConfigurationModulesUri')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "UpdateVNetDNS2",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-08-01",
+      "dependsOn": [
+        "Microsoft.Resources/deployments/ConfigureBDC"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vnetTemplateUri')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "customerPrefix": {
+            "value": "[parameters('customerPrefix')]"
+          },
+          "vnetAddressPrefix": {
+            "value": "[parameters('vnetAddressPrefix')]"
+          },
+          "subnetAddressPrefix": {
+            "value": "[parameters('subnetAddressPrefix')]"
+          },
+          "dnsServerAddress": {
+            "value": [
+              "[variables('pdcIpAddress')]",
+              "[variables('bdcIpAddress')]"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('pdcName'),'/RegionalSettings')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
+        "Microsoft.Resources/deployments/UpdateVNetDNS2"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.9",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+          ],
+          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
+        }
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('bdcName'),'/RegionalSettings')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]",
+        "Microsoft.Resources/deployments/UpdateVNetDNS2"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.9",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+          ],
+          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
+        }
+      },
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "adds"
+      }
+    }
+  ]
+}
