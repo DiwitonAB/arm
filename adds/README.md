@@ -4,4 +4,4 @@ This template also creates a Virtual Network (VNET) and subnet.
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FDiwitonAB%2Farm%2Fmaster%2Fadds%2Fadds-deployment.json)
 
-Copyright Diwiton 2020
+Copyright Diwiton AB 2020
