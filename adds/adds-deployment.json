@@ -126,16 +126,16 @@
     "bdcHostNumber": "[add(variables('hostBit'),5)]",
     "pdcIpAddress": "[concat(variables('maskBit'), '.', variables('pdcHostNumber'))]",
     "bdcIpAddress": "[concat(variables('maskBit'), '.', variables('bdcHostNumber'))]",
-    "storageAccount": "https://diwitonshellstorage01.blob.core.windows.net",
-    "pdcConfigurationModulesUri": "[concat(variables('storageAccount'),'/dsc/adds-deployment/CreateADPDC.zip')]",
+    "gitHubRepoUrl": "https://raw.githubusercontent.com/DiwitonAB/arm/master/",
+    "pdcConfigurationModulesUri": "[concat(variables('gitHubRepoUrl'),'adds/dsc/CreateADPDC.zip')]",
     "pdcConfigurationFunction": "CreateADPDC.ps1\\CreateADPDC",
-    "bdcPreparationModulesUri": "[concat(variables('storageAccount'),'/dsc/adds-deployment/PrepareADBDC.zip')]",
+    "bdcPreparationModulesUri": "[concat(variables('gitHubRepoUrl'),'adds/dsc/PrepareADBDC.zip')]",
     "bdcPreparationFunction": "PrepareADBDC.ps1\\PrepareADBDC",
-    "bdcConfigurationModulesUri": "[concat(variables('storageAccount'),'/dsc/adds-deployment/ConfigureADBDC.zip')]",
+    "bdcConfigurationModulesUri": "[concat(variables('gitHubRepoUrl'),'adds/dsc/ConfigureADBDC.zip')]",
     "bdcConfigurationFunction": "ConfigureADBDC.ps1\\ConfigureADBDC",
-    "vnetTemplateUri": "[concat(variables('storageAccount'),'/arm/vnet-deployment.json')]",
-    "regionTemplateUri": "[concat(variables('storageAccount'),'/arm/cse-deployment.json')]",
-    "configureBdcTemplateUri": "[concat(variables('storageAccount'),'/arm/nested-templates/ConfigureBDC.json')]"
+    "vnetTemplateUri": "[concat(variables('gitHubRepoUrl'),'vnet/vnet-deployment.json')]",
+    "regionTemplateUri": "[concat(variables('gitHubRepoUrl'),'arm/cse/cse-deployment.json')]",
+    "configureBdcTemplateUri": "[concat(variables('gitHubRepoUrl'),'adds/nested-templates/ConfigureBDC.json')]"
   },
   "resources": [
     {
@@ -182,6 +182,9 @@
           "contentVersion": "1.0.0.0"
         },
         "parameters": {
+          "siteName": {
+            "value": "[parameters('siteName')]"
+          },
           "customerPrefix": {
             "value": "[parameters('customerPrefix')]"
           },
@@ -401,6 +404,9 @@
           "contentVersion": "1.0.0.0"
         },
         "parameters": {
+          "siteName": {
+            "value": "[parameters('siteName')]"
+          },
           "customerPrefix": {
             "value": "[parameters('customerPrefix')]"
           },
@@ -594,6 +600,9 @@
           "contentVersion": "1.0.0.0"
         },
         "parameters": {
+          "siteName": {
+            "value": "[parameters('siteName')]"
+          },
           "customerPrefix": {
             "value": "[parameters('customerPrefix')]"
           },
