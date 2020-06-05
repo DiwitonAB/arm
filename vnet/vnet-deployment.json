@@ -2,6 +2,13 @@
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "siteName": {
+      "type": "string",
+      "defaultValue": "nlams01",
+      "metadata": {
+        "description": "Lower case site name in the format '<country_code><city_code><number>'."
+      }
+    },
     "customerPrefix": {
       "type": "string",
       "defaultValue": "Diwiton",
@@ -32,8 +39,8 @@
     }
   },
   "variables": {
-    "vnetName": "[toUpper(concat(parameters('customerPrefix'), '-VNET'))]",
-    "subnetName": "[toUpper(concat(parameters('customerPrefix'), '-Subnet'))]"
+    "vnetName": "[toLower(concat(parameters('siteName'), '-vnet'))]",
+    "subnetName": "[toLower(concat(parameters('sitename'), '-subnet01'))]"
   },
   "resources": [
     {
@@ -41,6 +48,10 @@
       "type": "Microsoft.Network/virtualNetworks",
       "name": "[variables('vnetName')]",
       "location": "[resourceGroup().location]",
+      "tags": {
+        "customer": "[parameters('customerPrefix')]",
+        "service": "vnet"
+      },
       "properties": {
         "addressSpace": {
           "addressPrefixes": [
@@ -54,7 +65,7 @@
           {
             "name": "[variables('subnetName')]",
             "properties": {
-              "addressPrefix": "[parameters('subnetAddressPrefix')]",
+              "addressPrefix": "[parameters('subnetAddressPrefix')]"
             }
           }
         ]
