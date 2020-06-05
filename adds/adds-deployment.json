@@ -637,7 +637,7 @@
         "autoUpgradeMinorVersion": true,
         "settings": {
           "fileUris": [
-            "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+            "[variables('regionTemplateUri')]"
           ],
           "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
         }
@@ -663,7 +663,7 @@
         "autoUpgradeMinorVersion": true,
         "settings": {
           "fileUris": [
-            "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+            "[variables('regionTemplateUri')]"
           ],
           "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
         }

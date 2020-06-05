@@ -28,14 +28,14 @@
       "metadata": {
         "description": "The name of the VNET where to deploy the VM. The VNET must have access to the Active Directory domain."
       },
-      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-VNET'))]"
+      "defaultValue": "[toUpper(concat(parameters('siteName'), '-vnet'))]"
     },
     "subnetName": {
       "type": "string",
       "metadata": {
         "description": "The name of the subnet where to deploy the VM. The subnet must have access to the Active Directory domain."
       },
-      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-Subnet'))]"
+      "defaultValue": "[toUpper(concat(parameters('siteName'), '-subnet01'))]"
     },
     "adDomainName": {
       "type": "string",
@@ -140,7 +140,9 @@
     "dnsLabelPrefix": "[toLower(concat(parameters('customerPrefix'), '-', variables('vmName')))]",
     "nsgId": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('vmName'), '-nsg'))]",
     "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
-    "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
+    "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]",
+    "gitHubRepoUrl": "https://raw.githubusercontent.com/DiwitonAB/arm/master/",
+    "regionTemplateUri": "[concat(variables('gitHubRepoUrl'),'arm/cse/cse-deployment.json')]"
   },
   "resources": [
     {
@@ -387,7 +389,7 @@
             "autoUpgradeMinorVersion": true,
             "settings": {
               "fileUris": [
-                "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
+                "[variables('regionTemplateUri')]"
               ],
               "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
             }
