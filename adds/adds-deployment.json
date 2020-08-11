@@ -391,7 +391,7 @@
           "location": "[variables('location')]",
           "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
-            "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'), '/CreateADForest')]"
+            "[concat('Microsoft.Compute/virtualMachines/',variables('pdcName'),'/extensions/CreateADForest')]"
           ],
           "tags": {
             "displayName": "RegionalSettings"
@@ -580,7 +580,7 @@
           "location": "[variables('location')]",
           "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]",
-            "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'), '/PrepareBDC')]"
+            "[concat('Microsoft.Compute/virtualMachines/',variables('bdcName'),'/extensions/PrepareBDC')]"
           ],
           "tags": {
             "displayName": "RegionalSettings"
