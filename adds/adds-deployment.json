@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
     "siteName": {
@@ -302,7 +302,7 @@
         "[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]"
       ],
       "properties": {
-        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "licenseType": " [ if(equals(parameters('useAzureHybridBenefit'), 'yes'), 'Windows_Server', json('null')) ]",
         "hardwareProfile": {
           "vmSize": "[parameters('vmSize')]"
         },
@@ -352,8 +352,8 @@
       },
       "resources": [
         {
-          "name": "CreateADForest",
-          "type": "extensions",
+          "name": "[concat(variables('pdcName'), '/CreateADForest')]",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
           "apiVersion": "2018-10-01",
           "location": "[variables('location')]",
           "dependsOn": [
@@ -368,9 +368,8 @@
             },
             "publisher": "Microsoft.Powershell",
             "settings": {
-              "wmfVersion": "latest",
-              "ModulesUrl": "[variables('pdcConfigurationModulesUri')]",
               "ConfigurationFunction": "[variables('pdcConfigurationFunction')]",
+              "ModulesUrl": "[variables('pdcConfigurationModulesUri')]",
               "properties": {
                 "DomainName": "[parameters('domainName')]",
                 "DomainNetBIOSName": "[variables('netBiosName')]",
@@ -378,7 +377,8 @@
                   "UserName": "[parameters('adminUsername')]",
                   "Password": "PrivateSettingsRef:AdminPassword"
                 }
-              }
+              },
+              "wmfVersion": "latest"
             },
             "type": "DSC",
             "typeHandlerVersion": "2.77"
@@ -393,9 +393,6 @@
             "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
             "[concat('Microsoft.Compute/virtualMachines/',variables('pdcName'), '/extensions/CreateADForest')]"
           ],
-          "tags": {
-            "displayName": "RegionalSettings"
-          },
           "properties": {
             "publisher": "Microsoft.Compute",
             "type": "CustomScriptExtension",
@@ -550,8 +547,8 @@
       },
       "resources": [
         {
-          "name": "PrepareBDC",
-          "type": "extensions",
+          "name": "[concat(variables('pdcName'), '/PrepareBDC')]",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
           "apiVersion": "2018-10-01",
           "location": "[variables('location')]",
           "dependsOn": [
@@ -575,16 +572,14 @@
         },
         {
           "apiVersion": "2018-06-01",
-          "type": "extensions",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
           "name": "[concat(variables('bdcName'), '/RegionalSettings')]",
           "location": "[variables('location')]",
           "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]",
             "[concat('Microsoft.Compute/virtualMachines/',variables('bdcName'),'/extensions/PrepareBDC')]"
           ],
-          "tags": {
-            "displayName": "RegionalSettings"
-          },
+
           "properties": {
             "publisher": "Microsoft.Compute",
             "type": "CustomScriptExtension",
