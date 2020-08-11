@@ -386,7 +386,7 @@
         },
         {
           "apiVersion": "2018-06-01",
-          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "type": "extensions",
           "name": "RegionalSettings",
           "location": "[variables('location')]",
           "dependsOn": [
@@ -575,7 +575,7 @@
         },
         {
           "apiVersion": "2018-06-01",
-          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "type": "extensions",
           "name": "RegionalSettings",
           "location": "[variables('location')]",
           "dependsOn": [
