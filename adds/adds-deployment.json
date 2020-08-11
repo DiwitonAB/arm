@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
     "siteName": {
@@ -141,7 +141,7 @@
     {
       "name": "[concat(variables('addsPrefix'), '-public-ip')]",
       "type": "Microsoft.Network/publicIPAddresses",
-      "apiVersion": "2018-10-01",
+      "apiVersion": "2019-09-01",
       "location": "[variables('location')]",
       "properties": {
         "publicIPAllocationMethod": "Dynamic",
@@ -174,7 +174,7 @@
     {
       "name": "[toLower(concat(parameters('siteName'), '-vnet'))]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-08-01",
+      "apiVersion": "2019-05-01",
       "properties": {
         "mode": "Incremental",
         "templateLink": {
@@ -294,7 +294,7 @@
     {
       "name": "[variables('pdcName')]",
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2018-04-01",
+      "apiVersion": "2019-03-01",
       "location": "[variables('location')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('pdcName'), '-nic'))]",
@@ -360,15 +360,18 @@
             "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]"
           ],
           "properties": {
-            "publisher": "Microsoft.Powershell",
-            "type": "DSC",
-            "typeHandlerVersion": "2.77",
             "autoUpgradeMinorVersion": true,
+            "protectedSettings": {
+              "Items": {
+                "AdminPassword": "[parameters('adminPassword')]"
+              }
+            },
+            "publisher": "Microsoft.Powershell",
             "settings": {
               "wmfVersion": "latest",
               "ModulesUrl": "[variables('pdcConfigurationModulesUri')]",
               "ConfigurationFunction": "[variables('pdcConfigurationFunction')]",
-              "Properties": {
+              "properties": {
                 "DomainName": "[parameters('domainName')]",
                 "DomainNetBIOSName": "[variables('netBiosName')]",
                 "AdminCreds": {
@@ -377,21 +380,18 @@
                 }
               }
             },
-            "protectedSettings": {
-              "Items": {
-                "AdminPassword": "[parameters('adminPassword')]"
-              }
-            }
+            "type": "DSC",
+            "typeHandlerVersion": "2.77"
           }
         },
         {
           "apiVersion": "2018-06-01",
           "type": "extensions",
-          "name": "RegionalSettings",
+          "name": "[concat(variables('pdcName'), '/RegionalSettings')]",
           "location": "[variables('location')]",
           "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
-            "[concat('Microsoft.Compute/virtualMachines/',variables('pdcName'),'/extensions/CreateADForest')]"
+            "[concat('Microsoft.Compute/virtualMachines/',variables('pdcName/CreateADForest')]"
           ],
           "tags": {
             "displayName": "RegionalSettings"
@@ -404,11 +404,10 @@
             "settings": {
               "fileUris": [
                 "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
-              ]
-            },
-            "protectedSettings": {
+              ],
               "commandToExecute": "powershell.exe Regional-Settings.ps1"
-            }
+            },
+            "protectedSettings": {}
           }
         }
       ],
@@ -420,7 +419,7 @@
     {
       "name": "UpdateVNetDNS1",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-08-01",
+      "apiVersion": "2019-05-01",
       "dependsOn": [
         "[concat('Microsoft.Compute/virtualMachines/', variables('pdcName'),'/extensions/CreateADForest')]"
       ],
@@ -493,7 +492,7 @@
     {
       "name": "[variables('bdcName')]",
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2018-04-01",
+      "apiVersion": "2019-03-01",
       "location": "[variables('location')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('bdcName'), '-nic'))]",
@@ -570,13 +569,14 @@
               "Properties": {
                 "DNSServer": "[variables('pdcIpAddress')]"
               }
-            }
+            },
+            "protectedSettings": {}
           }
         },
         {
           "apiVersion": "2018-06-01",
           "type": "extensions",
-          "name": "RegionalSettings",
+          "name": "[concat(variables('bdcName'), '/RegionalSettings')]",
           "location": "[variables('location')]",
           "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]",
@@ -593,11 +593,10 @@
             "settings": {
               "fileUris": [
                 "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
-              ]
-            },
-            "protectedSettings": {
+              ],
               "commandToExecute": "powershell.exe Regional-Settings.ps1"
-            }
+            },
+            "protectedSettings": {}
           }
         }
       ]
@@ -605,7 +604,7 @@
     {
       "name": "ConfigureBDC",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-08-01",
+      "apiVersion": "2019-05-01",
       "dependsOn": [
         "[concat('Microsoft.Compute/virtualMachines/',variables('bdcName'),'/extensions/PrepareBDC')]"
       ],
@@ -643,7 +642,7 @@
     {
       "name": "UpdateVNetDNS2",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-08-01",
+      "apiVersion": "2019-05-01",
       "dependsOn": [
         "Microsoft.Resources/deployments/ConfigureBDC"
       ],
