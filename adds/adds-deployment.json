@@ -383,6 +383,33 @@
               }
             }
           }
+        },
+        {
+          "apiVersion": "2018-06-01",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "RegionalSettings",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'), '/CreateADForest')]"
+          ],
+          "tags": {
+            "displayName": "RegionalSettings"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.10",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
+              ]
+            },
+            "protectedSettings": {
+              "commandToExecute": "powershell.exe Regional-Settings.ps1"
+            }
+          }
         }
       ],
       "tags": {
@@ -545,6 +572,33 @@
               }
             }
           }
+        },
+        {
+          "apiVersion": "2018-06-01",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "RegionalSettings",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]",
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'), '/PrepareBDC')]"
+          ],
+          "tags": {
+            "displayName": "RegionalSettings"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.10",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
+              ]
+            },
+            "protectedSettings": {
+              "commandToExecute": "powershell.exe Regional-Settings.ps1"
+            }
+          }
         }
       ]
     },
@@ -619,58 +673,6 @@
             ]
           }
         }
-      }
-    },
-    {
-      "apiVersion": "2018-06-01",
-      "type": "Microsoft.Compute/virtualMachines/extensions",
-      "name": "[concat(variables('pdcName'),'/RegionalSettings')]",
-      "location": "[variables('location')]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
-        "Microsoft.Resources/deployments/UpdateVNetDNS2"
-      ],
-      "properties": {
-        "publisher": "Microsoft.Compute",
-        "type": "CustomScriptExtension",
-        "typeHandlerVersion": "1.9",
-        "autoUpgradeMinorVersion": true,
-        "settings": {
-          "fileUris": [
-            "[variables('regionTemplateUri')]"
-          ],
-          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
-        }
-      },
-      "tags": {
-        "customer": "[parameters('customerPrefix')]",
-        "service": "adds"
-      }
-    },
-    {
-      "apiVersion": "2018-06-01",
-      "type": "Microsoft.Compute/virtualMachines/extensions",
-      "name": "[concat(variables('bdcName'),'/RegionalSettings')]",
-      "location": "[variables('location')]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Compute/virtualMachines', variables('bdcName'))]",
-        "Microsoft.Resources/deployments/UpdateVNetDNS2"
-      ],
-      "properties": {
-        "publisher": "Microsoft.Compute",
-        "type": "CustomScriptExtension",
-        "typeHandlerVersion": "1.9",
-        "autoUpgradeMinorVersion": true,
-        "settings": {
-          "fileUris": [
-            "[variables('regionTemplateUri')]"
-          ],
-          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
-        }
-      },
-      "tags": {
-        "customer": "[parameters('customerPrefix')]",
-        "service": "adds"
       }
     }
   ]
