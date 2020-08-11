@@ -391,7 +391,7 @@
           "location": "[variables('location')]",
           "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines', variables('pdcName'))]",
-            "[concat('Microsoft.Compute/virtualMachines/',variables('pdcName/CreateADForest')]"
+            "[concat('Microsoft.Compute/virtualMachines/',variables('pdcName'), '/extensions/CreateADForest')]"
           ],
           "tags": {
             "displayName": "RegionalSettings"
