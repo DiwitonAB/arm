@@ -386,7 +386,7 @@
         },
         {
           "apiVersion": "2018-06-01",
-          "type": "extensions",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
           "name": "[concat(variables('pdcName'), '/RegionalSettings')]",
           "location": "[variables('location')]",
           "dependsOn": [
