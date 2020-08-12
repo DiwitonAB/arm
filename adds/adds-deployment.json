@@ -302,7 +302,7 @@
         "[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]"
       ],
       "properties": {
-        "licenseType": " [ if(equals(parameters('useAzureHybridBenefit'), 'yes'), 'Windows_Server', json('null')) ]",
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'),'Windows_Server','Windows_Client')]",
         "hardwareProfile": {
           "vmSize": "[parameters('vmSize')]"
         },
@@ -402,7 +402,7 @@
               "fileUris": [
                 "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
               ],
-              "commandToExecute": "powershell.exe Regional-Settings.ps1"
+              "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./Regional-Settings.ps1"
             },
             "protectedSettings": {}
           }
@@ -497,7 +497,7 @@
         "[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]"
       ],
       "properties": {
-        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'), 'Windows_Server', json('null'))]",
+        "licenseType": "[if(equals(parameters('useAzureHybridBenefit'),'yes'),'Windows_Server','Windows_Client')]",
         "hardwareProfile": {
           "vmSize": "[parameters('vmSize')]"
         },
@@ -547,7 +547,7 @@
       },
       "resources": [
         {
-          "name": "[concat(variables('pdcName'), '/PrepareBDC')]",
+          "name": "[concat(variables('bdcName'), '/PrepareBDC')]",
           "type": "Microsoft.Compute/virtualMachines/extensions",
           "apiVersion": "2018-10-01",
           "location": "[variables('location')]",

@@ -33,7 +33,7 @@
           "fileUris": [
             "https://diwitonshellstorage01.blob.core.windows.net/cse/region/Regional-Settings.ps1"
           ],
-          "commandToExecute": "powershell.exe Regional-Settings.ps1"
+          "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./Regional-Settings.ps1"
         },
         "protectedSettings": {}
       }
