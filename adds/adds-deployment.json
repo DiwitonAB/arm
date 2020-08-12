@@ -589,7 +589,7 @@
               "fileUris": [
                 "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
               ],
-              "commandToExecute": "powershell.exe Regional-Settings.ps1"
+              "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./Regional-Settings.ps1"
             },
             "protectedSettings": {}
           }
