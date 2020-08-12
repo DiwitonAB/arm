@@ -378,21 +378,22 @@
           "name": "[concat(variables('vmName'), '/RegionalSettings')]",
           "location": "[variables('location')]",
           "dependsOn": [
-            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]",
-            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), '/extensions/AntiMalware')]",
-            "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), '/extensions/DomainJoin')]"
+            "[concat('Microsoft.Compute/virtualMachines/',variables('vmName'))]",
+            "[concat('Microsoft.Compute/virtualMachines/',variables('vmName'), '/extensions/AntiMalware')]",
+            "[concat('Microsoft.Compute/virtualMachines/',variables('vmName'), '/extensions/DomainJoin')]"
           ],
           "properties": {
             "publisher": "Microsoft.Compute",
             "type": "CustomScriptExtension",
-            "typeHandlerVersion": "1.9",
+            "typeHandlerVersion": "1.10",
             "autoUpgradeMinorVersion": true,
             "settings": {
               "fileUris": [
-                "[variables('regionTemplateUri')]"
+                "https://raw.githubusercontent.com/DiwitonAB/arm/master/cse/scripts/Regional-Settings.ps1"
               ],
-              "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./region/Regional-Settings.ps1"
-            }
+              "commandToExecute": "powershell.exe -ExecutionPolicy Bypass -File ./Regional-Settings.ps1"
+            },
+            "protectedSettings": {}
           }
         }
       ],

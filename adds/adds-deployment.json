@@ -134,8 +134,10 @@
     "bdcConfigurationModulesUri": "[concat(variables('gitHubRepoUrl'),'adds/dsc/ConfigureADBDC.zip')]",
     "bdcConfigurationFunction": "ConfigureADBDC.ps1\\ConfigureADBDC",
     "vnetTemplateUri": "[concat(variables('gitHubRepoUrl'),'vnet/vnet-deployment.json')]",
-    "regionTemplateUri": "[concat(variables('gitHubRepoUrl'),'arm/cse/cse-deployment.json')]",
-    "configureBdcTemplateUri": "[concat(variables('gitHubRepoUrl'),'adds/nested-templates/ConfigureBDC.json')]"
+    "configureBdcTemplateUri": "[concat(variables('gitHubRepoUrl'),'adds/nested-templates/ConfigureBDC.json')]",
+    "regionalSettingsPath": "cse/scripts/",
+    "regionalSettingsScript": "Regional-Settings.ps1"
+
   },
   "resources": [
     {
