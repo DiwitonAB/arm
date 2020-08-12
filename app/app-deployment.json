@@ -362,7 +362,7 @@
             "autoUpgradeMinorVersion": true,
             "settings": {
               "Name": "[parameters('adDomainName')]",
-              "User": "[parameters('adUserName')]",
+              "User": "[concat(parameters('adUserName'),'@',parameters('adDomainName'))]",
               "Restart": "true",
               "OUPath": "",
               "Options": "3"
