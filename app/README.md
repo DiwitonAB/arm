@@ -1,4 +1,4 @@
-# VPN Tunnel
+# Standalone Server
 Azure Resource Manager (ARM) template to create an application (APP) server (or whatever you want) on a VM in Azure. 
 This template also adds the VM to a specified VNET/Subnet and Active Directory domain.
 
