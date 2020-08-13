@@ -2,6 +2,13 @@
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "siteName": {
+      "type": "string",
+      "defaultValue": "nlams01",
+      "metadata": {
+        "description": "Lower case site name in the format '<country_code><city_code><number>'."
+      }
+    },
     "customerPrefix": {
       "type": "string",
       "metadata": {
@@ -9,19 +16,26 @@
       },
       "defaultValue": "Diwiton"
     },
+    "customerSiteName": {
+      "type": "string",
+      "metadata": {
+        "description": "The site name of the customer premises."
+      },
+      "defaultValue": "sethn01"
+    },
     "vnetName": {
       "type": "string",
       "metadata": {
         "description": "The name of the VNET where to deploy the VM. The VNET must have access to the Active Directory domain."
       },
-      "defaultValue": "[toUpper(concat(parameters('customerPrefix'), '-VNET'))]"
+      "defaultValue": "[toUpper(concat(parameters('siteName'), '-vnet'))]"
     },
     "subnetName": {
       "type": "string",
       "metadata": {
         "description": "The name of the subnet where to deploy the VM. The subnet must have access to the Active Directory domain."
       },
-      "defaultValue": "GatewaySubnet"
+      "defaultValue": "[toUpper(concat(parameters('siteName'), '-subnet01'))]"
     },
     "subnetPrefix": {
       "type": "string",
@@ -49,6 +63,7 @@
     }
   },
   "variables": {
+    "vpnGwName": "[concat(parameters('siteName'), '-', parameters('vpnGwName'))]",
     "location": "[resourceGroup().location]",
     "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
     "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
@@ -66,7 +81,7 @@
     {
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2019-07-01",
-      "name": "[concat(parameters('vpnGwName'), '-public-ip')]",
+      "name": "[concat(variables('vpnGwName'), '-public-ip')]",
       "location": "[variables('location')]",
       "sku": {
         "name": "Basic",
@@ -84,10 +99,10 @@
     {
       "type": "Microsoft.Network/virtualNetworkGateways",
       "apiVersion": "2019-07-01",
-      "name": "[parameters('vpnGwName')]",
+      "name": "[variables('vpnGwName')]",
       "location": "[variables('location')]",
       "dependsOn": [
-        "[concat('Microsoft.Network/publicIpAddresses/', parameters('vpnGwName'), '-public-ip')]",
+        "[concat('Microsoft.Network/publicIpAddresses/', variables('vpnGwName'), '-public-ip')]",
         "[variables('subnetRef')]"
       ],
       "properties": {
@@ -131,10 +146,10 @@
     {
       "type": "Microsoft.Network/localNetworkGateways",
       "apiVersion": "2019-07-01",
-      "name": "[concat(toLower(parameters('customerPrefix')), '-gw')]",
+      "name": "[concat(toLower(parameters('customerSiteName')), '-gw')]",
       "location": "[variables('location')]",
       "dependsOn": [
-        "[concat('Microsoft.Network/virtualNetworkGateways/', parameters('vpnGwName'))]"
+        "[concat('Microsoft.Network/virtualNetworkGateways/', variables('vpnGwName'))]"
       ],
       "properties": {
         "localNetworkAddressSpace": {
@@ -150,18 +165,18 @@
     {
       "type": "Microsoft.Network/connections",
       "apiVersion": "2019-07-01",
-      "name": "[concat('Azure_to_', parameters('customerPrefix'))]",
+      "name": "[concat(parameters('siteName'), '_to_', parameters('customerSiteName'))]",
       "location": "[variables('location')]",
       "dependsOn": [
-        "[concat('Microsoft.Network/virtualNetworkGateways/', parameters('vpnGwName'))]",
-        "[concat('Microsoft.Network/localNetworkGateways/', toLower(parameters('customerPrefix')), '-gw')]"
+        "[concat('Microsoft.Network/virtualNetworkGateways/', variables('vpnGwName'))]",
+        "[concat('Microsoft.Network/localNetworkGateways/', toLower(parameters('customerSiteName')), '-gw')]"
       ],
       "properties": {
         "virtualNetworkGateway1": {
           "id": "[resourceId('Microsoft.Network/virtualNetworkGateways', parameters('vpnGwName'))]"
         },
         "localNetworkGateway2": {
-          "id": "[resourceId('Microsoft.Network/localNetworkGateways', concat(toLower(parameters('customerPrefix')), '-gw'))]"
+          "id": "[resourceId('Microsoft.Network/localNetworkGateways', concat(parameters('customerSiteName'),'-gw'))]"
         },
         "connectionType": "IPsec",
         "connectionProtocol": "IKEv2",
